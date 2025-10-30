@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results - Professor information</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            background-color: white;
+        }
+        select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .professor-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header style=" color: white; padding: 1rem 0; margin-bottom: 2rem;">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="{% url 'home' %}" style="color: black; text-decoration: none; font-size: 1.5rem; font-weight: bold;">Rate My Professor</a>
+            <nav style="display: flex; gap: 2rem;">
+                <a href="{% url 'home' %}" style="color: black; text-decoration: none;">Home</a>
+                <a href="{% url 'showitems' %}" style="color: black; text-decoration: none;">Browse</a>
+                {% comment %}<a href="{% url 'register' %}" style="color: black; text-decoration: none;">Register</a>{% endcomment %}
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <h1>Search Results</h1>
+        
+        {% if search_query %}
+            <p style="margin-bottom: 20px; color: #666;">
+                Search results for: <strong>"{{ search_query }}"</strong>
+            </p>
+            <!-- Debug info -->
+            <!--<div style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9rem;">
+                <strong>Debug Information:</strong><br>
+                {% for info in debug_info %}
+                    {{ info }}<br>
+                {% endfor %}
+            </div>-->
+        {% endif %}
+        
+        {% if has_results %}
+            <div style="margin-bottom: 20px;">
+                <p style="color: #4CAF50; font-weight: bold;">
+                    Found {{ professor_results|length }} professor(s) matching your search.
+                </p>
+            </div>
+            
+            {% for professor in professor_results %}
+            <div class="professor-card" style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <div class="professor-header" style="border-bottom: 2px solid #f0f0f0; padding-bottom: 1rem; margin-bottom: 1rem;">
+                    <h2 style="color: #333; margin-bottom: 0.5rem; font-size: 2rem;">
+                        <a href="{% url 'professor_profile' professor.name %}" style="color: #667eea; text-decoration: none;">
+                            {{ professor.name }}
+                        </a>
+                    </h2>
+                    <p style="color: #667eea; font-size: 1.2rem; margin-bottom: 1rem;">{{ professor.school_name }}</p>
+                    
+                    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div class="stat-number" style="font-size: 1.8rem; font-weight: bold; color: #667eea;">{{ professor.total_reviews }}</div>
+                            <div class="stat-label" style="color: #666; font-size: 0.9rem;">Total Reviews</div>
+                        </div>
+                        <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div class="stat-number" style="font-size: 1.8rem; font-weight: bold; color: #ff9800;">{{ professor.average_rating }}</div>
+                            <div class="stat-label" style="color: #666; font-size: 0.9rem;">Average Rating</div>
+                        </div>
+                        <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div class="stat-number" style="font-size: 1.8rem; font-weight: bold; color: #f44336;">{{ professor.average_difficulty }}</div>
+                            <div class="stat-label" style="color: #666; font-size: 0.9rem;">Average Difficulty</div>
+                        </div>
+                        <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div class="stat-number" style="font-size: 1.8rem; font-weight: bold; color: #2196f3;">{{ professor.would_take_again_percent }}%</div>
+                            <div class="stat-label" style="color: #666; font-size: 0.9rem;">Would Take Again</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="reviews-preview">
+                    <h3 style="color: #333; margin-bottom: 1rem;">Recent Reviews</h3>
+                    {% for review in professor.reviews %}
+                    <div class="review-item" style="border-bottom: 1px solid #eee; padding: 1rem 0;">
+                        <div class="review-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <div class="course-name" style="font-weight: bold; color: #333;">{{ review.course }}</div>
+                            <div class="review-rating" style="display: flex; gap: 1rem;">
+                                <div class="rating-item" style="text-align: center;">
+                                    <div class="rating-value" style="font-weight: bold; color: #ff9800;">{{ review.star_rating }}</div>
+                                    <div class="rating-label" style="font-size: 0.8rem; color: #666;">Overall</div>
+                                </div>
+                                <div class="rating-item" style="text-align: center;">
+                                    <div class="rating-value" style="font-weight: bold; color: #f44336;">{{ review.difficulty }}</div>
+                                    <div class="rating-label" style="font-size: 0.8rem; color: #666;">Difficulty</div>
+                                </div>
+                                <div class="rating-item" style="text-align: center;">
+                                    <div class="rating-value" style="font-weight: bold; color: #2196f3;">{{ review.help_useful }}</div>
+                                    <div class="rating-label" style="font-size: 0.8rem; color: #666;">Helpful</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% if review.comments %}
+                        <div class="review-comment" style="background: #f9f9f9; padding: 0.8rem; border-radius: 5px; margin-top: 0.5rem; font-style: italic; color: #666;">
+                            "{{ review.comments|truncatechars:150 }}"
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <a href="{% url 'professor_profile' professor.name %}" style="background: #667eea; color: white; padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 5px; display: inline-block;">
+                            View Full Profile ({{ professor.total_reviews }} reviews)
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% elif search_query %}
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <h3>No professors found</h3>
+                <p>No professors match your search for "{{ search_query }}"</p>
+                <p>Try searching with a different name or <a href="{% url 'showitems' %}">browse all professors</a></p>
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <h3>Search for Professors</h3>
+                <p>Enter a professor's name in the search box above to find their profile.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

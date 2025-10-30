@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>database page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background: #667eea;
+            color: white;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .professor-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .professor-name {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        
+        .professor-school {
+            font-size: 1.2rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .professor-department {
+            font-size: 1.2rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        
+        .reviews-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .review-item {
+            border-bottom: 1px solid #eee;
+            padding: 1.5rem 0;
+        }
+        
+        .review-item:last-child {
+            border-bottom: none;
+        }
+        
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .course-name {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .review-rating {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .rating-item {
+            text-align: center;
+        }
+        
+        .rating-value {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .rating-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .star-rating {
+            color: #ff9800;
+        }
+        
+        .difficulty {
+            color: #f44336;
+        }
+        
+        .helpful {
+            color: #2196f3;
+        }
+        
+        .review-comment {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-style: italic;
+        }
+
+    </style>
+
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="{% url 'home' %}" class="logo">Rate My Professor</a>
+            <div class="nav-links">
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'showitems' %}">Browse</a>
+                {% comment %}<a href="{% url 'register' %}">Register</a>{% endcomment %}
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="reviews-section">
+            <h2 style="margin-bottom:1rem;">All Feedback</h2>
+            {% if items %}
+                {% for item in items %}
+                <div class="review-item" id="comment-{{ item.id }}">
+                    <div class="review-header">
+                        <div class="course-name">{{ item.professor_name }} • {{ item.course }}</div>
+                        <div class="review-rating">
+                            <div class="rating-item">
+                                <div class="rating-value star-rating">{{ item.star_rating }}</div>
+                                <div class="rating-label">Overall</div>
+                            </div>
+                            <div class="rating-item">
+                                <div class="rating-value difficulty">{{ item.difficulty }}</div>
+                                <div class="rating-label">Difficulty</div>
+                            </div>
+                            <div class="rating-item">
+                                <div class="rating-value helpful">{{ item.help_useful }}</div>
+                                <div class="rating-label">Helpful</div>
+                            </div>
+                            <div class="rating-item">
+                                <div class="rating-value">{% if item.would_take_agains %}Yes{% else %}No{% endif %}</div>
+                                <div class="rating-label">Take Again</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="review-comment">
+                        <strong>ID: {{ item.id }}</strong>
+                        <div style="margin-top:.5rem;">"{{ item.comments }}"</div>
+                        <div style="margin-top:.75rem; display:flex; gap:.5rem;">
+                            <form method="post" action="{% url 'delete_review' item.id %}" onsubmit="return confirm('Delete review #{{ item.id }}?');">
+                                {% csrf_token %}
+                                <button type="submit" style="background:#e11d48; color:#fff; border:none; padding:.4rem .7rem; border-radius:6px; cursor:pointer;">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No feedback found.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+</body>
+</html>

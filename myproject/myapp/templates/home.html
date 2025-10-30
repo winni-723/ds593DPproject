@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate My Professor - Find and Rate Your Professors</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            color: #667eea;
+        }
+        
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            color: white;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .search-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .search-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .search-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .quick-links {
+            
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .quick-link {
+            background: rgba(255, 255, 255, 0.2);
+            color: black;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+        
+        .quick-link:hover {
+            background: #667eea;
+        }
+        
+        /* Features Section - Removed for simplicity */
+        
+        /* Stats Section */
+        /*.stats {
+            background: #f8f9fa;
+            padding: 3rem 0;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            text-align: center;
+        }
+        
+        .stat-item h3 {
+            font-size: 2.5rem;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-item p {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Footer */
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .search-form {
+                flex-direction: column;
+            }
+            
+            .nav-links {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="{% url 'home' %}" class="logo">Rate My Professor</a>
+            <ul class="nav-links">
+                <li><a href="{% url 'home' %}">Home</a></li>
+                <li><a href="{% url 'showitems' %}">Browse Professors</a></li>
+                {% comment %}<li><a href="{% url 'register' %}">Register</a></li>{% endcomment %}
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Find the Best Professors</h1>
+                <p>Discover professor ratings, reviews, and course information from real students</p>
+                
+                <div class="search-box">
+                    <form class="search-form" method="get" action="{% url 'search_prof' %}">
+                        <input type="text" name="q" class="search-input" placeholder="Search by name (e.g., Leslie or Leslie Looney)...">
+                        <button type="submit" class="search-btn">Search</button>
+                    </form>
+                    <div class="quick-links">
+                        {% comment %}<a href="{% url 'showitems' %}" class="quick-link">Browse All Professors</a>{% endcomment %}
+                        <a href="#" id="write-review-link" class="quick-link">Write a Review</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!--<section class="stats">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <h3>{{ total_reviews }}+</h3>
+                        <p>Professor Reviews</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>{{ total_schools }}+</h3>
+                        <p>Universities</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>{{ total_professors }}+</h3>
+                        <p>Professors</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Real</h3>
+                        <p>Student Reviews</p>
+                    </div>
+                </div>
+            </div>
+        </section>-->
+    </main>
+
+    <script>
+    (function() {
+        var writeLink = document.getElementById('write-review-link');
+        if (!writeLink) return;
+        writeLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            var input = document.querySelector('input[name="q"]');
+            var q = input ? input.value.trim() : '';
+            var baseUrl = "{% url 'WriteReviewBlank' %}";
+            if (q) {
+                window.location.href = baseUrl + '?q=' + encodeURIComponent(q);
+            } else {
+                window.location.href = baseUrl;
+            }
+        });
+    })();
+    </script>
+
+    <!--<footer>
+        <div class="container">
+            <p>&copy; 2024 Rate My Professor. All rights reserved.</p>
+        </div>
+    </footer>-->
+</body>
+</html>

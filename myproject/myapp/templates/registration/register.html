@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block content %}
+<div class="container">
+    <h2>{{messages}}</h2>
+
+        {%csrf_token%}
+        <input class="form-control" type="text" name="username" placeholder="Username" required /> <br>
+        <input class="form-control" type="password" name="password" placeholder="Password" required /> <br>
+        <input class="form-control" type="password" name="confirm_password" placeholder="Confirm Password" required />
+        <br>
+
+
+        <!-- <button class="btn btn-success" type="submit">Register</button> -->
+    </form>
+
+
+    {%endblock content%}
