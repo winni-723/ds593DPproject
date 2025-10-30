@@ -6,6 +6,55 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.db import models
 from .models import ITEM
+from django.conf import settings
+
+try:
+    from google import genai
+except Exception:
+    genai = None
+
+# Initialize Gemini client if available
+_gemini_client = None
+if genai is not None and getattr(settings, 'GEMINI_API_KEY', ''):
+    try:
+        _gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    except Exception:
+        _gemini_client = None
+
+
+def make_review_private(review_text: str) -> str:
+    """Use Gemini to anonymize the review text. If unavailable, return original."""
+    if not review_text:
+        return review_text
+    if _gemini_client is None:
+        return review_text
+
+    prompt = f"""
+You are an AI assistant ensuring differential privacy in student reviews.
+
+Here is a student's review of a professor:
+---
+{review_text}
+---
+
+If this review contains identifying or personal information
+(e.g. name, course section, health details, project titles, nationality, or specific events),
+rewrite it so that it remains constructive but fully anonymous.
+
+If it is already anonymous, keep it unchanged.
+
+Return only the cleaned text.
+    """
+
+    try:
+        response = _gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        cleaned = response.text.strip() if getattr(response, 'text', None) else review_text
+        return cleaned or review_text
+    except Exception:
+        return review_text
 
 # Create your views here.
 def home(request):
@@ -290,6 +339,9 @@ def WriteReview(request,professor_name):
         if missing_fields:
             messages.error(request, f"Please fill all required fields: {', '.join(missing_fields)}")
         else:
+            # Clean the comment for privacy before saving
+            cleaned_comments = make_review_private(comments)
+
             # Create a new ITEM review entry
             ITEM.objects.create(
                 professor_name=professor_name,
@@ -300,7 +352,7 @@ def WriteReview(request,professor_name):
                 difficulty=difficulty,
                 would_take_agains=would_take_agains if would_take_agains is not None else False,
                 help_useful=help_useful,
-                comments=comments,
+                comments=cleaned_comments,
             )
             messages.success(request, 'Your review has been submitted.')
             return redirect('professor_profile', professor_name=professor_name)
