@@ -84,8 +84,4 @@ We aim to show that:
 
 This work extends beyond theoretical study by applying **DP and LLM filtering** to a **real-world dataset**, bridging the gap between **research and practice**.  
 
----
 
-### 📎 Dataset Reference  
-- [RateMyProfessor Dataset (Mendeley Data)](https://data.mendeley.com)  
-- Alternative source: [RateMyProfessor Dataset (Kaggle)](https://www.kaggle.com/competitions/rate-my-professors/data)
