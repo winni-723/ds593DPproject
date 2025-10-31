@@ -4,9 +4,9 @@
 Online review platforms such as **RateMyProfessor** provide valuable insights for students choosing instructors — but they also expose sensitive data that may lead to **privacy violations**.  
 
 This project builds a **prototype website** modeled after RateMyProfessor that integrates **Differential Privacy (DP)** for aggregated statistics. Using an **open RateMyProfessor dataset** as the backend, the system enables users to submit:  
-- ⭐ Ratings (numerical)  
-- 💬 Feedback (text)  
-- 🔁 “Would Take Again” (boolean)
+- Ratings (numerical)
+- Feedback (text)  
+- “Would Take Again” (boolean)
 - Useful (numerical)
 - Difficulty (numerical)
 
