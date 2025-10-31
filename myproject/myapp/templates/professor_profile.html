@@ -268,7 +268,7 @@
                 </div>
                 {% if review.comments %}
                 <div class="review-comment" id="comment-{{ review.id }}">
-                    <span class="comment-id">ID: {{ review.id }}</span>
+                    {% comment %}<span class="comment-id">ID: {{ review.id }}</span> {% endcomment %}
                     <div class="comment-text">"{{ review.comments }}"</div>
                 </div>
                 {% endif %}
