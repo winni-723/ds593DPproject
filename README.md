@@ -4,9 +4,11 @@
 Online review platforms such as **RateMyProfessor** provide valuable insights for students choosing instructors — but they also expose sensitive data that may lead to **privacy violations**.  
 
 This project builds a **prototype website** modeled after RateMyProfessor that integrates **Differential Privacy (DP)** for aggregated statistics. Using an **open RateMyProfessor dataset** as the backend, the system enables users to submit:  
-- ⭐ Ratings (stars)  
+- ⭐ Ratings (numerical)  
 - 💬 Feedback (text)  
-- 🔁 A “Would Take Again” flag  
+- 🔁 “Would Take Again” (boolean)
+- Useful (numerical)
+- Difficulty (numerical)
 
 All **aggregated outputs** will be released under **differential privacy guarantees**, while an **LLM-based text filter** will flag potentially identifiable information before submission.  
 
@@ -55,8 +57,9 @@ This project demonstrates how **modern privacy-preserving techniques** can be ap
 We will use the **RateMyProfessor Dataset** from **Mendeley Data**, containing millions of student evaluations, including:  
 - Overall quality ratings  
 - Difficulty levels  
-- “Would Take Again” flags  
-- Descriptive tags and written comments  
+- “Would Take Again” 
+- Useful
+- written comments  
 
 This dataset enables exploration of **student perspectives** on teaching effectiveness and course experience while testing **privacy-preserving mechanisms**.  
 
