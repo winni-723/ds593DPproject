@@ -1,12 +1,14 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
 from django.http import HttpResponse
 from django.db import models
+from django.views.decorators.csrf import csrf_exempt
 from .models import ITEM
 from django.conf import settings
+import json
 
 try:
     from google import genai
@@ -37,14 +39,13 @@ Here is a student's review of a professor:
 {review_text}
 ---
 
-If this review contains identifying or personal information
-(e.g. name, course section, health details, project titles, nationality, or specific events),
-rewrite it so that it remains constructive but fully anonymous.
+If this review contains personal or identifying information (like the student's name, schedule, project topic, group name, nationality, unique incidents, or specific grades),
+rewrite it in a way that keeps the general opinion but removes or generalizes any identifying details, Also if it has email or phone number or name remove them.
 
-If it is already anonymous, keep it unchanged.
+If it is already anonymous and safe, just return the same text.
 
-Return only the cleaned text.
-    """
+Return only the cleaned review, nothing else.
+"""
 
     try:
         response = _gemini_client.models.generate_content(
@@ -55,6 +56,140 @@ Return only the cleaned text.
         return cleaned or review_text
     except Exception:
         return review_text
+
+
+@csrf_exempt
+def check_privacy_risk(request):
+    """Check privacy risk level and return rephrased text if high risk."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        review_text = data.get('review_text', '').strip()
+    except (json.JSONDecodeError, KeyError):
+        return JsonResponse({'error': 'Invalid request data'}, status=400)
+    
+    if not review_text:
+        return JsonResponse({
+            'risk_level': 'low',
+            'original_text': '',
+            'rephrased_text': ''
+        })
+    
+    if _gemini_client is None:
+        return JsonResponse({
+            'risk_level': 'unknown',
+            'original_text': review_text,
+            'rephrased_text': review_text,
+            'error': 'AI service unavailable'
+        })
+    
+    prompt = f"""
+You are an AI that ensures differential privacy in student feedback.
+
+The following text is a student's review of a professor:
+
+---
+
+{review_text}
+
+---
+
+Analyze this review for personal or identifying information such as:
+- Student's name, email, phone number
+- Schedule, specific dates/times
+- Project topics, group names
+- Nationality or other personal identifiers
+- Unique incidents that could identify the student
+- Specific grades or scores
+
+If this review contains such identifying information, set risk_level to "high" and provide a rephrased version that keeps the general opinion but removes or generalizes identifying details.
+
+If the review is already anonymous and safe (no identifying information), set risk_level to "low" and return the original text as rephrased_text.
+
+You MUST return ONLY valid JSON in this exact format (no markdown, no code blocks, no additional text):
+{{
+    "risk_level": "high",
+    "rephrased_text": "the rephrased version here"
+}}
+
+or
+
+{{
+    "risk_level": "low",
+    "rephrased_text": "the original text here"
+}}
+"""
+    
+    try:
+        response = _gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        raw = response.text.strip() if getattr(response, 'text', None) else ''
+        
+        # Try to extract JSON from the response
+        # Sometimes the model wraps JSON in markdown code blocks
+        cleaned_raw = raw.strip()
+        if cleaned_raw.startswith('```'):
+            # Remove markdown code block markers
+            lines = cleaned_raw.split('\n')
+            if len(lines) > 2:
+                cleaned_raw = '\n'.join(lines[1:-1]).strip()
+        elif cleaned_raw.startswith('```json'):
+            lines = cleaned_raw.split('\n')
+            if len(lines) > 2:
+                cleaned_raw = '\n'.join(lines[1:-1]).strip()
+        
+        # Try to find JSON object in the response
+        json_start = cleaned_raw.find('{')
+        json_end = cleaned_raw.rfind('}')
+        if json_start != -1 and json_end != -1 and json_end > json_start:
+            cleaned_raw = cleaned_raw[json_start:json_end + 1]
+        
+        # Try to parse JSON
+        try:
+            result = json.loads(cleaned_raw)
+            risk_level = result.get('risk_level', 'unknown').lower()
+            rephrased_text = result.get('rephrased_text', review_text)
+            
+            # Validate risk_level
+            if risk_level not in ['high', 'low']:
+                risk_level = 'unknown'
+            
+            # Ensure rephrased_text is not empty
+            if not rephrased_text or not rephrased_text.strip():
+                rephrased_text = review_text
+            
+            return JsonResponse({
+                'risk_level': risk_level,
+                'original_text': review_text,
+                'rephrased_text': rephrased_text
+            })
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to determine risk from response
+            # If the response is different from original, likely high risk
+            cleaned_raw = cleaned_raw.strip()
+            if cleaned_raw and cleaned_raw.lower() != review_text.lower() and len(cleaned_raw) > 10:
+                return JsonResponse({
+                    'risk_level': 'high',
+                    'original_text': review_text,
+                    'rephrased_text': cleaned_raw
+                })
+            else:
+                return JsonResponse({
+                    'risk_level': 'low',
+                    'original_text': review_text,
+                    'rephrased_text': review_text
+                })
+    except Exception as e:
+        return JsonResponse({
+            'risk_level': 'unknown',
+            'original_text': review_text,
+            'rephrased_text': review_text,
+            'error': str(e)
+        })
 
 # Create your views here.
 def home(request):
