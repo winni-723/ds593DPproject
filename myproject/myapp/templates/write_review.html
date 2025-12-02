@@ -263,6 +263,29 @@
             transform: translateY(1px);
         }
 
+        .detect-risks-btn {
+            background: #10b981;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.05s ease;
+        }
+
+        .detect-risks-btn:hover {
+            background: #059669;
+        }
+
+        .detect-risks-btn:active {
+            transform: translateY(1px);
+        }
+
+        .detect-risks-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
 
         /* Privacy modal */
         .privacy-modal-backdrop {
@@ -302,6 +325,47 @@
         .privacy-modal .modal-body ul {
             margin-left: 1rem;
             margin-top: .5rem;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .risk-high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .risk-low {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .rephrased-preview {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .rephrased-preview h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.9rem;
+            color: #374151;
+        }
+
+        .rephrased-preview p {
+            margin: 0;
+            color: #4b5563;
+            line-height: 1.5;
         }
 
         .privacy-modal .modal-actions {
@@ -415,11 +479,13 @@
 
             
             <label for="message">Your Feedback</label>
-            <textarea id="message" name="message" rows="7" placeholder="Share your experience with this professor..." required></textarea>
+            <textarea id="message" name="message" rows="7" placeholder="Share your experience with this professor...(avoid sharing personal information)" required></textarea>
             <div class="helper-row">
                 <small>Be specific and constructive. Avoid sharing personal information.</small>
                 <small id="message-count">0 / 1000</small>
             </div>
+
+            <button type="button" id="detect-risks-btn" class="detect-risks-btn" style="display:none; margin-top: 0.5rem; margin-bottom: 1rem;">Detect Risks</button>
 
             <button type="submit">Submit Feedback</button>
         </form>
@@ -429,17 +495,21 @@
     <div class="privacy-modal-backdrop" id="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
         <div class="privacy-modal" role="document">
             <header>
-                <h3 id="privacy-modal-title">Potential personal or identifying info detected</h3>
+                <h3 id="privacy-modal-title">
+                    Privacy Risk Assessment
+                    <span id="risk-badge" class="risk-badge" style="display:none;"></span>
+                </h3>
             </header>
             <div class="modal-body">
-                <p>For your privacy, avoid sharing details that could identify you or others. We spotted:</p>
-                <ul id="privacy-issues"></ul>
-                <p style="margin-top:.5rem; color:#555;">You can continue, edit your text, or auto‑redact the sensitive parts.</p>
+                <p id="risk-message"></p>
+                <div id="rephrased-preview" class="rephrased-preview" style="display:none;">
+                    <h4>Rephrased version:</h4>
+                    <p id="rephrased-text"></p>
+                </div>
             </div>
             <div class="modal-actions">
-                <button type="button" class="btn-secondary" id="privacy-edit">Let me edit</button>
-                <button type="button" class="btn-danger" id="privacy-redact">Auto‑redact</button>
-                <button type="button" class="btn-primary" id="privacy-continue">Continue anyway</button>
+                <button type="button" class="btn-secondary" id="privacy-edit">Keep original</button>
+                <button type="button" class="btn-primary" id="privacy-rephrase" style="display:none;">Use rephrased version</button>
             </div>
         </div>
     </div>
@@ -464,110 +534,150 @@
     updateCount();
 })();
 
-// Lightweight client-side privacy checker
+// AI-based privacy risk checker
 (function() {
     var textarea = document.getElementById('message');
     var form = textarea ? textarea.closest('form') : null;
     if (!textarea || !form) return;
 
+    var detectRisksBtn = document.getElementById('detect-risks-btn');
     var modal = document.getElementById('privacy-modal');
-    var issuesList = document.getElementById('privacy-issues');
+    var riskBadge = document.getElementById('risk-badge');
+    var riskMessage = document.getElementById('risk-message');
+    var rephrasedPreview = document.getElementById('rephrased-preview');
+    var rephrasedText = document.getElementById('rephrased-text');
     var btnEdit = document.getElementById('privacy-edit');
-    var btnRedact = document.getElementById('privacy-redact');
-    var btnContinue = document.getElementById('privacy-continue');
+    var btnRephrase = document.getElementById('privacy-rephrase');
 
-    var lastShownAt = 0;
-    var userChoseContinue = false;
-
-    var detectors = [
-        { label: 'Email address', re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, redact: '[email]'},
-        { label: 'Phone number', re: /(?:(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4})/g, redact: '[phone]'},
-        { label: 'URL', re: /\bhttps?:\/\/[^\s]+/gi, redact: '[link]'},
-        { label: 'Student/ID number', re: /\b\d{7,}\b/g, redact: '[id]'},
-        { label: 'Specific section code', re: /\b([A-Z]{2,}\s?\d{2,4})([-\s]?(?:\d{2,3}|[A-Z]{1,2}))\b/g, redact: '[course-section]'},
-        { label: 'Full date', re: /\b(?:\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*,?\s\d{4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s\d{1,2},?\s\d{4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/gi, redact: '[date]'},
-        { label: 'Address-like text', re: /\b\d{1,5}\s+[A-Za-z0-9'.\-]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct)\b/gi, redact: '[address]'},
-        { label: 'Self-identifying phrase', re: /\b(my name is|i am|i'm)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/gi, redact: '[anon]'}
-    ];
-
-    function findIssues(text) {
-        var findings = [];
-        detectors.forEach(function(det) {
-            var m; var re = new RegExp(det.re.source, det.re.flags);
-            while ((m = re.exec(text)) !== null) {
-                var snippet = m[0];
-                findings.push({ label: det.label, match: snippet, index: m.index, length: snippet.length, redact: det.redact, re: det.re });
-                if (findings.length > 20) break; // safety
-            }
-        });
-        return findings;
-    }
-
-    function buildIssuesList(findings) {
-        issuesList.innerHTML = '';
-        findings.slice(0, 10).forEach(function(f) {
-            var li = document.createElement('li');
-            li.textContent = f.label + ': "' + f.match + '"';
-            issuesList.appendChild(li);
-        });
-        if (findings.length > 10) {
-            var more = document.createElement('li');
-            more.textContent = (findings.length - 10) + ' more…';
-            issuesList.appendChild(more);
-        }
-    }
-
-    function redact(text, findings) {
-        // Replace from end to start to keep indices valid
-        var sorted = findings.slice().sort(function(a,b){ return b.index - a.index; });
-        var out = text;
-        sorted.forEach(function(f){ out = out.slice(0, f.index) + f.redact + out.slice(f.index + f.length); });
-        return out;
-    }
+    var lastCheckedText = '';
+    var currentRephrasedText = '';
+    var isChecking = false;
 
     function showModal() {
         modal.style.display = 'flex';
     }
+    
     function hideModal() {
         modal.style.display = 'none';
     }
 
-    function maybeWarn(source) {
-        if (userChoseContinue) return; // user already acknowledged
-        var now = Date.now();
-        if (now - lastShownAt < 2500 && source === 'typing') return; // throttle warnings while typing
-        var text = textarea.value;
-        var findings = findIssues(text);
-        if (findings.length) {
-            lastShownAt = now;
-            buildIssuesList(findings);
-            showModal();
-            // Wire actions each time to capture current findings
-            btnEdit.onclick = function() { hideModal(); textarea.focus(); };
-            btnRedact.onclick = function() {
-                textarea.value = redact(textarea.value, findings);
-                hideModal();
-                textarea.dispatchEvent(new Event('input'));
-                textarea.focus();
-            };
-            btnContinue.onclick = function() { userChoseContinue = true; hideModal(); };
-            return true;
+    function updateDetectButton() {
+        var text = textarea.value.trim();
+        if (text.length >= 1) {
+            detectRisksBtn.style.display = 'inline-block';
+            detectRisksBtn.disabled = isChecking;
+        } else {
+            detectRisksBtn.style.display = 'none';
         }
-        return false;
     }
 
-    // On typing, gently warn
-    textarea.addEventListener('input', function(){ maybeWarn('typing'); });
-
-    // On submit, require acknowledgement
-    form.addEventListener('submit', function(e){
-        var findings = findIssues(textarea.value);
-        if (findings.length && !userChoseContinue) {
-            e.preventDefault();
-            buildIssuesList(findings);
-            showModal();
+    function checkPrivacyRisk(text) {
+        if (!text || text.trim().length < 1) {
+            alert('Please enter some feedback before detecting risks.');
+            return;
         }
+
+        if (isChecking) return;
+        isChecking = true;
+        detectRisksBtn.disabled = true;
+        detectRisksBtn.textContent = 'Checking...';
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            isChecking = false;
+            detectRisksBtn.disabled = false;
+            detectRisksBtn.textContent = 'Detect Risks';
+            return;
+        }
+
+        fetch('{% url "check_privacy_risk" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken.value
+            },
+            body: JSON.stringify({ review_text: text })
+        })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            isChecking = false;
+            detectRisksBtn.disabled = false;
+            detectRisksBtn.textContent = 'Detect Risks';
+            lastCheckedText = text;
+            
+            var riskLevel = data.risk_level || 'unknown';
+            var rephrased = data.rephrased_text || text;
+            currentRephrasedText = rephrased;
+
+            // Update UI based on risk level
+            if (riskLevel === 'high') {
+                riskBadge.textContent = 'HIGH RISK';
+                riskBadge.className = 'risk-badge risk-high';
+                riskBadge.style.display = 'inline-block';
+                riskMessage.textContent = 'Your feedback contains potentially identifying information. We recommend using the rephrased version below to protect your privacy.';
+                rephrasedPreview.style.display = 'block';
+                rephrasedText.textContent = rephrased;
+                btnRephrase.style.display = 'inline-block';
+                showModal();
+            } else if (riskLevel === 'low') {
+                riskBadge.textContent = 'LOW RISK';
+                riskBadge.className = 'risk-badge risk-low';
+                riskBadge.style.display = 'inline-block';
+                riskMessage.textContent = 'Your feedback appears to be safe and anonymous.';
+                rephrasedPreview.style.display = 'none';
+                btnRephrase.style.display = 'none';
+                showModal();
+                // Auto-hide low risk after 3 seconds
+                setTimeout(hideModal, 3000);
+            } else {
+                // Unknown or error
+                hideModal();
+            }
+        })
+        .catch(function(error) {
+            isChecking = false;
+            detectRisksBtn.disabled = false;
+            detectRisksBtn.textContent = 'Detect Risks';
+            console.error('Error checking privacy risk:', error);
+            alert('Error checking privacy risk. Please try again.');
+        });
+    }
+
+    // Show/hide detect button based on text length
+    textarea.addEventListener('input', function() {
+        updateDetectButton();
     });
+
+    // Initial check
+    updateDetectButton();
+
+    // Handle detect risks button click
+    detectRisksBtn.addEventListener('click', function() {
+        checkPrivacyRisk(textarea.value);
+    });
+
+    // Handle button clicks
+    btnEdit.onclick = function() {
+        hideModal();
+        textarea.focus();
+    };
+
+    btnRephrase.onclick = function() {
+        if (currentRephrasedText) {
+            textarea.value = currentRephrasedText;
+            lastCheckedText = currentRephrasedText;
+            textarea.dispatchEvent(new Event('input'));
+            hideModal();
+            textarea.focus();
+        }
+    };
+
+    // On form submit, allow normal submission
+    // The risk check happens automatically as user types
+    // If user wants to submit with high risk, they can click "Keep original"
 })();
 </script>
 </html>
