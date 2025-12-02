@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import ITEM
 from django.conf import settings
 import json
+import numpy as np
 
 try:
     from google import genai
@@ -22,6 +23,82 @@ if genai is not None and getattr(settings, 'GEMINI_API_KEY', ''):
         _gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
     except Exception:
         _gemini_client = None
+
+
+def dp_average(ratings, a, b, epsilon):
+    """
+    Differentially private average using Laplace mechanism.
+    """
+    n = len(ratings)
+    if n == 0:
+        return 0.0, 0.0
+    
+    true_avg = np.mean(ratings)
+    
+    # sensitivity for average
+    sensitivity = (b - a) / n
+    
+    # Laplace noise scale
+    scale = sensitivity / epsilon
+    
+    # Adding Laplace noise to the true average
+    noisy_avg = true_avg + np.random.laplace(0, scale)
+    
+    return noisy_avg, true_avg
+
+
+def dp_difficulty_average(difficulty, a, b, epsilon):
+    """
+    Differentially private average using Laplace mechanism.
+    Returns only the noisy average.
+    """
+    n = len(difficulty)
+    true_avg = np.mean(difficulty)
+   
+    sensitivity = (b - a) / n
+    scale = sensitivity / epsilon
+    noisy_avg = true_avg + np.random.laplace(0, scale)
+    return noisy_avg, true_avg
+
+
+def dp_count(count, epsilon):
+    """
+    Differentially private count using Laplace mechanism.
+    Sensitivity for a count query is 1.0.
+    """
+    # Sensitivity for a count query is always 1.0
+    sensitivity = 1.0
+    
+    scale = sensitivity / epsilon
+    noisy_count = count + np.random.laplace(0, scale)
+    
+    return noisy_count
+
+def dp_helpful_average(helpful, a, b, epsilon):
+    """
+    Differentially private average using Laplace mechanism.
+    Returns only the noisy average.
+    """
+    n = len(helpful)
+    if n == 0:
+        return 0.0, 0.0
+
+    true_avg = np.mean(helpful)
+
+    # sensitivity for average
+    sensitivity = (b - a) / n
+
+    # Laplace noise scale
+    scale = sensitivity / epsilon
+
+    # Adding Laplace noise to the true average
+    noisy_avg = true_avg + np.random.laplace(0, scale)
+
+    # Clamp to keep value within valid bounds (non-negative)
+    noisy_avg = max(a, min(b, noisy_avg))
+
+    return noisy_avg, true_avg
+
 
 
 def make_review_private(review_text: str) -> str:
@@ -293,12 +370,50 @@ def professor_profile(request, professor_name):
     
     # Get professor statistics
     total_reviews = reviews.count()
-    average_rating = round(reviews.aggregate(avg_rating=models.Avg('star_rating'))['avg_rating'] or 0, 1)
-    average_difficulty = round(reviews.aggregate(avg_diff=models.Avg('difficulty'))['avg_diff'] or 0, 1)
+    #average_rating = round(reviews.aggregate(avg_rating=models.Avg('star_rating'))['avg_rating'] or 0, 1)
+    
+    # Calculate differentially private average rating
+    ratings = list(reviews.values_list('star_rating', flat=True))
+    min_rating = 0.0
+    max_rating = 5.0
+    epsilon = 1.0  # Privacy loss
+    noisy_avg, true_avg = dp_average(ratings, min_rating, max_rating, epsilon)
+    average_rating = round(noisy_avg, 1)
+    
+    #average_difficulty = round(reviews.aggregate(avg_diff=models.Avg('difficulty'))['avg_diff'] or 0, 1)
+    # Calculate differentially private average difficulty
+    difficulty = list(reviews.values_list('difficulty', flat=True))
+    min_difficulty = 1.0
+    max_difficulty = 5.0
+    epsilon = 1.0  # Privacy loss
+    noisy_avg, true_avg = dp_difficulty_average(difficulty, min_difficulty, max_difficulty, epsilon)
+    average_difficulty = round(noisy_avg, 1)
+
+    # Calculate average help_useful
+    # Using proper Django aggregate syntax
+    # avg_result = reviews.aggregate(avg_help=models.Avg('help_useful'))
+    # average_help_useful = round(avg_result.get('avg_help') or 0, 1)
+    helpful = list(reviews.values_list('help_useful', flat=True))
+    min_helpful = 1.0
+    max_helpful = 10.0
+    epsilon = 1.0  # Privacy loss
+    noisy_avg, true_avg = dp_helpful_average(helpful, min_helpful, max_helpful, epsilon)
+    average_help_useful = round(noisy_avg, 1)
     
     # Calculate percentage who would take again
-    would_take_again_count = reviews.filter(would_take_agains=True).count()
-    would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
+    # would_take_again_count = reviews.filter(would_take_agains=True).count()
+    # would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
+    
+    # Calculate differentially private percentage who would take again
+    true_count = reviews.filter(would_take_agains=True).count()
+    epsilon = 1.0  # Privacy loss
+    noisy_count = dp_count(true_count, epsilon)
+    # Ensure noisy_count is non-negative
+    noisy_count = max(0, noisy_count)
+    # Calculate noisy percentage
+    would_take_again_percent = round((noisy_count / total_reviews) * 100) if total_reviews > 0 else 0
+    # Ensure percentage is between 0 and 100
+    would_take_again_percent = max(0, min(100, would_take_again_percent))
     
     # Get school name (assuming all reviews are from the same school)
     school_name = reviews.first().school_name
@@ -312,6 +427,7 @@ def professor_profile(request, professor_name):
         'total_reviews': total_reviews,
         'average_rating': average_rating,
         'average_difficulty': average_difficulty,
+        'average_help_useful': average_help_useful,
         'would_take_again_percent': would_take_again_percent,
     }
     
@@ -396,12 +512,49 @@ def search_prof(request):
             if reviews.exists():
                 # Get professor statistics
                 total_reviews = reviews.count()
-                average_rating = round(reviews.aggregate(avg_rating=models.Avg('star_rating'))['avg_rating'] or 0, 1)
-                average_difficulty = round(reviews.aggregate(avg_diff=models.Avg('difficulty'))['avg_diff'] or 0, 1)
+                #average_rating = round(reviews.aggregate(avg_rating=models.Avg('star_rating'))['avg_rating'] or 0, 1)
+                
+                # Calculate differentially private average rating
+                ratings = list(reviews.values_list('star_rating', flat=True))
+                min_rating = 0.0
+                max_rating = 5.0
+                epsilon = 1.0  # Privacy budget
+                noisy_avg, true_avg = dp_average(ratings, min_rating, max_rating, epsilon)
+                average_rating = round(noisy_avg, 1)
+                
+                #average_difficulty = round(reviews.aggregate(avg_diff=models.Avg('difficulty'))['avg_diff'] or 0, 1)
+                # Calculate differentially private average difficulty
+                difficulty = list(reviews.values_list('difficulty', flat=True))
+                min_difficulty = 1.0
+                max_difficulty = 5.0
+                epsilon = 1.0  # Privacy budget
+                noisy_avg, true_avg = dp_difficulty_average(difficulty, min_difficulty, max_difficulty, epsilon)
+                average_difficulty = round(noisy_avg, 1)
+
+                # Calculate average help_useful
+                # Using proper Django aggregate syntax
+                # avg_result = reviews.aggregate(avg_help=models.Avg('help_useful'))
+                # average_help_useful = round(avg_result.get('avg_help') or 0, 1)
+                helpful = list(reviews.values_list('help_useful', flat=True))
+                min_helpful = 1.0
+                max_helpful = 10.0
+                epsilon = 1.0  # Privacy loss
+                noisy_avg, true_avg = dp_helpful_average(helpful, min_helpful, max_helpful, epsilon)
+                average_help_useful = round(noisy_avg, 1)
                 
                 # Calculate percentage who would take again
-                would_take_again_count = reviews.filter(would_take_agains=True).count()
-                would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
+                # would_take_again_count = reviews.filter(would_take_agains=True).count()
+                # would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
+                # Calculate differentially private percentage who would take again
+                true_count = reviews.filter(would_take_agains=True).count()
+                epsilon = 1.0  # Privacy budget
+                noisy_count = dp_count(true_count, epsilon)
+                # Ensure noisy_count is non-negative
+                noisy_count = max(0, noisy_count)
+                # Calculate noisy percentage
+                would_take_again_percent = round((noisy_count / total_reviews) * 100) if total_reviews > 0 else 0
+                # Ensure percentage is between 0 and 100
+                would_take_again_percent = max(0, min(100, would_take_again_percent))
                 
                 # Get school name
                 school_name = reviews.first().school_name
@@ -412,6 +565,7 @@ def search_prof(request):
                     'total_reviews': total_reviews,
                     'average_rating': average_rating,
                     'average_difficulty': average_difficulty,
+                    'average_help_useful': average_help_useful,
                     'would_take_again_percent': would_take_again_percent,
                     'reviews': reviews[:3]  # Show first 3 reviews as preview
                 })
@@ -450,6 +604,9 @@ def WriteReview(request,professor_name):
             help_useful = int(help_useful_raw) if help_useful_raw else None
         except ValueError:
             help_useful = None
+        if help_useful is not None:
+            # Clamp to keep within allowed positive range (1-10)
+            help_useful = max(1, min(10, help_useful))
         try:
             star_rating = float(rating_raw) if rating_raw else None
         except ValueError:
@@ -474,23 +631,42 @@ def WriteReview(request,professor_name):
         if missing_fields:
             messages.error(request, f"Please fill all required fields: {', '.join(missing_fields)}")
         else:
-            # Clean the comment for privacy before saving
-            cleaned_comments = make_review_private(comments)
+            # Check if user already used the rephrased version from frontend
+            is_rephrased = request.POST.get('is_rephrased', '0') == '1'
+            
+            # Only apply make_review_private if user hasn't already used the rephrased version
+            if is_rephrased:
+                # User explicitly chose the rephrased version, use it as-is
+                cleaned_comments = comments
+            else:
+                # Clean the comment for privacy before saving
+                cleaned_comments = make_review_private(comments)
+
+            # Ensure school_name and department_name are not empty
+            # If professor doesn't exist, we need at least some default values
+            if not school_name:
+                school_name = 'Unknown'
+            if not department_name:
+                department_name = 'Unknown'
 
             # Create a new ITEM review entry
-            ITEM.objects.create(
-                professor_name=professor_name,
-                school_name=school_name,
-                department_name=department_name,
-                star_rating=star_rating,
-                course=course,
-                difficulty=difficulty,
-                would_take_agains=would_take_agains if would_take_agains is not None else False,
-                help_useful=help_useful,
-                comments=cleaned_comments,
-            )
-            messages.success(request, 'Your review has been submitted.')
-            return redirect('professor_profile', professor_name=professor_name)
+            try:
+                ITEM.objects.create(
+                    professor_name=professor_name,
+                    school_name=school_name,
+                    department_name=department_name,
+                    star_rating=star_rating,
+                    course=course,
+                    difficulty=difficulty,
+                    would_take_agains=would_take_agains if would_take_agains is not None else False,
+                    help_useful=help_useful if help_useful is not None else 0,
+                    comments=cleaned_comments,
+                )
+                messages.success(request, 'Your review has been submitted.')
+                return redirect('professor_profile', professor_name=professor_name)
+            except Exception as e:
+                messages.error(request, f'Error saving review: {str(e)}')
+                # Don't redirect, stay on the form so user can see the error
 
     # Build unique course list for this professor
     courses = list(

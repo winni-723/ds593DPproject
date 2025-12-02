@@ -235,6 +235,10 @@
                     <div class="stat-label">Average Difficulty</div>
                 </div>
                 <div class="stat-card">
+                    <div class="stat-number">{{ average_help_useful }}</div>
+                    <div class="stat-label">Help Useful</div>
+                </div>
+                <div class="stat-card">
                     <div class="stat-number">{{ would_take_again_percent }}%</div>
                     <div class="stat-label">Would Take Again</div>
                 </div>
@@ -249,19 +253,19 @@
                     <div class="course-name">{{ review.course }}</div>
                     <div class="review-rating">
                         <div class="rating-item">
-                            <div class="rating-value star-rating">{{ review.star_rating }}</div>
-                            <div class="rating-label">Overall</div>
+                            <!--<div class="rating-value star-rating">{{ review.star_rating }}</div>-->
+                            <div class="rating-label">star rating</div>
                         </div>
                         <div class="rating-item">
-                            <div class="rating-value difficulty">{{ review.difficulty }}</div>
+                            <!--<div class="rating-value difficulty">{{ review.difficulty }}</div>-->
                             <div class="rating-label">Difficulty</div>
                         </div>
                         <div class="rating-item">
-                            <div class="rating-value helpful">{{ review.help_useful }}</div>
+                            <!--<div class="rating-value helpful">{{ review.help_useful }}</div>-->
                             <div class="rating-label">Helpful</div>
                         </div>
                         <div class="rating-item">
-                            <div class="rating-value">{% if review.would_take_agains %}Yes{% else %}No{% endif %}</div>
+                            <!--<div class="rating-value">{% if review.would_take_agains %}Yes{% else %}No{% endif %}</div>-->
                             <div class="rating-label">Take Again</div>
                         </div>
                     </div>
