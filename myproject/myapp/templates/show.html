@@ -156,10 +156,10 @@
                 <div class="detail-value">
                     <strong>School:</strong> {{ detail.school_name }}<br>
                     <strong>Department:</strong> {{ detail.department_name }}<br>
-                    <strong>Star Rating:</strong> <span class="rating">{{ detail.star_rating }}/5.0</span><br>
-                    <strong>Difficulty:</strong> <span class="difficulty">{{ detail.difficulty }}/5</span><br>
-                    <strong>Helpful:</strong> <span class="helpful">{{ detail.help_useful }}/5</span><br>
-                    <strong>Would Take Again:</strong> {% if detail.would_take_agains %}Yes{% else %}No{% endif %}<br>
+                    <!--<strong>Star Rating:</strong> <span class="rating">{{ detail.star_rating }}/5.0</span><br>-->
+                    <!--<strong>Difficulty:</strong> <span class="difficulty">{{ detail.difficulty }}/5</span><br>-->
+                    <!--<strong>Helpful:</strong> <span class="helpful">{{ detail.help_useful }}/5</span><br>-->
+                    <!--<strong>Would Take Again:</strong> {% if detail.would_take_agains %}Yes{% else %}No{% endif %}<br>-->
                     {% if detail.comments %}
                     <div id="comment-{{ detail.id }}">
                     <strong>Comments:</strong> {{ detail.comments }}
