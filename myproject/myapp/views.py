@@ -10,6 +10,7 @@ from .models import ITEM
 from django.conf import settings
 import json
 import numpy as np
+import re
 
 try:
     from google import genai
@@ -101,10 +102,88 @@ def dp_helpful_average(helpful, a, b, epsilon):
 
 
 
+def detect_and_remove_personal_info(text: str) -> tuple[bool, str]:
+    """
+    Detect personal information using regex patterns and remove it.
+    Returns (has_personal_info: bool, cleaned_text: str)
+    """
+    if not text:
+        return False, text
+    
+    original_text = text
+    has_personal_info = False
+    
+    # Pattern for email addresses
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    if re.search(email_pattern, text):
+        has_personal_info = True
+        text = re.sub(email_pattern, '[email removed]', text)
+    
+    # Pattern for phone numbers (various formats)
+    # More specific patterns to avoid false positives like years
+    phone_patterns = [
+        r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',  # US format with separators: 123-456-7890
+        r'\b\(\d{3}\)\s?\d{3}[-.\s]?\d{4}\b',  # (123) 456-7890
+        r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',  # 123.456.7890 or 123 456 7890
+        r'\b\+?\d{1,3}[-.\s]\d{1,4}[-.\s]\d{1,4}[-.\s]\d{1,9}\b',  # International with separators
+        # 10 consecutive digits but not at start of line (to avoid matching years in dates)
+        r'(?<!\d)\d{10}(?!\d)',  # 10 digits not preceded or followed by digits
+    ]
+    for pattern in phone_patterns:
+        if re.search(pattern, text):
+            has_personal_info = True
+            text = re.sub(pattern, '[phone number removed]', text)
+    
+    # Pattern for common name indicators (e.g., "My name is John", "I'm Sarah")
+    name_patterns = [
+        r'\b(?:my name is|i\'?m|i am|this is|call me|named|i go by)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b',
+        r'\b(?:signed|from|yours)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b',  # Email signatures
+        # Pattern for standalone capitalized names (likely to be names if not common words)
+        r'\b(?:hi|hello|hey|dear)\s+[A-Z][a-z]{2,}\b',  # "Hi John" or "Hello Sarah"
+    ]
+    for pattern in name_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            has_personal_info = True
+            text = re.sub(pattern, '[name removed]', text, flags=re.IGNORECASE)
+    
+    
+    # Pattern for ID numbers with common prefixes
+    id_prefix_patterns = [
+        r'\b(?:id|student id|studentid|student number|student#|sid|uid|user id|userid)\s*:?\s*[A-Z0-9]{4,}\b',
+        r'\b(?:id|student id|studentid|student number|student#|sid|uid|user id|userid)\s*:?\s*\d{6,}\b',
+    ]
+    for pattern in id_prefix_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            has_personal_info = True
+            text = re.sub(pattern, '[ID number removed]', text, flags=re.IGNORECASE)
+    
+    # Pattern for standalone ID numbers (6-12 digits, likely to be IDs)
+    # But avoid matching years, phone numbers, or other common numbers
+    standalone_id_pattern = r'\b(?:id|#)\s*\d{6,12}\b'
+    if re.search(standalone_id_pattern, text, re.IGNORECASE):
+        has_personal_info = True
+        text = re.sub(standalone_id_pattern, '[ID number removed]', text, flags=re.IGNORECASE)
+    
+    # Pattern for alphanumeric ID numbers (common in student IDs, employee IDs)
+    alphanumeric_id_pattern = r'\b[A-Z]{1,3}\d{4,10}\b|\b\d{4,10}[A-Z]{1,3}\b'
+    if re.search(alphanumeric_id_pattern, text):
+        has_personal_info = True
+        text = re.sub(alphanumeric_id_pattern, '[ID number removed]', text)
+    
+    
+    return has_personal_info, text
+
+
 def make_review_private(review_text: str) -> str:
     """Use Gemini to anonymize the review text. If unavailable, return original."""
     if not review_text:
         return review_text
+    
+    # First, use regex to remove obvious personal info
+    has_personal, cleaned = detect_and_remove_personal_info(review_text)
+    if has_personal:
+        review_text = cleaned
+    
     if _gemini_client is None:
         return review_text
 
@@ -154,13 +233,28 @@ def check_privacy_risk(request):
             'rephrased_text': ''
         })
     
+    # First, check for obvious personal information using regex
+    has_personal_info, regex_cleaned = detect_and_remove_personal_info(review_text)
+    
+    # If Gemini is not available, use regex-based detection
     if _gemini_client is None:
-        return JsonResponse({
-            'risk_level': 'unknown',
-            'original_text': review_text,
-            'rephrased_text': review_text,
-            'error': 'AI service unavailable'
-        })
+        if has_personal_info:
+            return JsonResponse({
+                'risk_level': 'high',
+                'original_text': review_text,
+                'rephrased_text': regex_cleaned,
+                'error': 'AI service unavailable, using pattern-based detection'
+            })
+        else:
+            return JsonResponse({
+                'risk_level': 'low',
+                'original_text': review_text,
+                'rephrased_text': review_text,
+                'error': 'AI service unavailable'
+            })
+    
+    # Use the regex-cleaned version for AI analysis if personal info was found
+    text_for_analysis = regex_cleaned if has_personal_info else review_text
     
     prompt = f"""
 You are an AI that ensures differential privacy in student feedback.
@@ -168,27 +262,34 @@ You are an AI that ensures differential privacy in student feedback.
 The following text is a student's review of a professor:
 
 ---
-
-{review_text}
-
+{text_for_analysis}
 ---
 
-Analyze this review for personal or identifying information such as:
-- Student's name, email, phone number
-- Schedule, specific dates/times
-- Project topics, group names
-- Nationality or other personal identifiers
+Your task is to analyze this review for personal or identifying information such as:
+- Student's name, email addresses, phone numbers
+- Schedule, specific dates/times, class times
+- Project topics, group names, team member names
+- Nationality, ethnicity, or other personal identifiers
 - Unique incidents that could identify the student
-- Specific grades or scores
+- Specific grades, scores, or exam results
+- Student ID numbers or other identifiers
+- Personal schedules or specific meeting times
 
-If this review contains such identifying information, set risk_level to "high" and provide a rephrased version that keeps the general opinion but removes or generalizes identifying details.
+CRITICAL INSTRUCTIONS:
+1. If this review contains ANY identifying information (names, emails, phone numbers, specific dates, unique incidents, etc.), you MUST:
+   - Set risk_level to "high"
+   - Provide a rephrased version that COMPLETELY REMOVES all identifying information
+   - Keep the general opinion and sentiment but remove ALL personal details
+   - Replace names with generic terms like "the student" or "a classmate"
+   - Remove or generalize specific dates, times, and unique incidents
+   - Remove email addresses, phone numbers, and other contact information
 
-If the review is already anonymous and safe (no identifying information), set risk_level to "low" and return the original text as rephrased_text.
+2. If the review is already anonymous and safe (no identifying information), set risk_level to "low" and return the original text as rephrased_text.
 
-You MUST return ONLY valid JSON in this exact format (no markdown, no code blocks, no additional text):
+3. You MUST return ONLY valid JSON in this exact format (no markdown, no code blocks, no additional text):
 {{
     "risk_level": "high",
-    "rephrased_text": "the rephrased version here"
+    "rephrased_text": "the cleaned version with all personal information removed"
 }}
 
 or
@@ -239,20 +340,42 @@ or
             if not rephrased_text or not rephrased_text.strip():
                 rephrased_text = review_text
             
+            # Always apply regex cleaning to AI output to catch anything AI might have missed
+            _, final_cleaned = detect_and_remove_personal_info(rephrased_text)
+            
+            # If regex found personal info (either initially or in AI output), set risk to high
+            if has_personal_info or final_cleaned != rephrased_text:
+                risk_level = 'high'
+                rephrased_text = final_cleaned
+            # If regex didn't find anything initially, but AI says high risk, trust AI
+            elif risk_level == 'high':
+                # Still apply regex as a safety check
+                rephrased_text = final_cleaned if final_cleaned != rephrased_text else rephrased_text
+            
             return JsonResponse({
                 'risk_level': risk_level,
                 'original_text': review_text,
                 'rephrased_text': rephrased_text
             })
         except json.JSONDecodeError:
-            # If JSON parsing fails, try to determine risk from response
-            # If the response is different from original, likely high risk
-            cleaned_raw = cleaned_raw.strip()
-            if cleaned_raw and cleaned_raw.lower() != review_text.lower() and len(cleaned_raw) > 10:
+            # If JSON parsing fails, use regex detection as fallback
+            if has_personal_info:
                 return JsonResponse({
                     'risk_level': 'high',
                     'original_text': review_text,
-                    'rephrased_text': cleaned_raw
+                    'rephrased_text': regex_cleaned
+                })
+            
+            # Try to determine risk from response
+            # If the response is different from original, likely high risk
+            cleaned_raw = cleaned_raw.strip()
+            if cleaned_raw and cleaned_raw.lower() != review_text.lower() and len(cleaned_raw) > 10:
+                # Apply regex cleaning to the AI response as well
+                _, ai_cleaned = detect_and_remove_personal_info(cleaned_raw)
+                return JsonResponse({
+                    'risk_level': 'high',
+                    'original_text': review_text,
+                    'rephrased_text': ai_cleaned if ai_cleaned != cleaned_raw else cleaned_raw
                 })
             else:
                 return JsonResponse({
@@ -261,6 +384,14 @@ or
                     'rephrased_text': review_text
                 })
     except Exception as e:
+        # On error, use regex detection as fallback
+        if has_personal_info:
+            return JsonResponse({
+                'risk_level': 'high',
+                'original_text': review_text,
+                'rephrased_text': regex_cleaned,
+                'error': f'AI error: {str(e)}, using pattern-based detection'
+            })
         return JsonResponse({
             'risk_level': 'unknown',
             'original_text': review_text,
