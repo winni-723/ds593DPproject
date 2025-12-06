@@ -23,10 +23,5 @@ from django.http import HttpResponse
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('myapp.urls')),
-    #path('user/', include('myapp.urls')),
     path('user/', include('django.contrib.auth.urls')),
-    # path('register/', include('myapp.urls')),
-    # path('browse/', include('myapp.urls')),
-    # path('professors/', include('myapp.urls')),
-    # path('professor/<str:professor_name>/', include('myapp.urls'))
 ]

@@ -85,18 +85,14 @@ def dp_helpful_average(helpful, a, b, epsilon):
         return 0.0, 0.0
 
     true_avg = np.mean(helpful)
-
-    # sensitivity for average
     sensitivity = (b - a) / n
-
-    # Laplace noise scale
     scale = sensitivity / epsilon
 
-    # Adding Laplace noise to the true average
+
     noisy_avg = true_avg + np.random.laplace(0, scale)
 
-    # Clamp to keep value within valid bounds (non-negative)
-    noisy_avg = max(a, min(b, noisy_avg))
+    # Clamp to keep value within valid bounds (allow 0.0 as minimum)
+    noisy_avg = max(0.0, min(b, noisy_avg))
 
     return noisy_avg, true_avg
 
@@ -307,7 +303,7 @@ or
         )
         raw = response.text.strip() if getattr(response, 'text', None) else ''
         
-        # Try to extract JSON from the response
+        # extract JSON from the response
         # Sometimes the model wraps JSON in markdown code blocks
         cleaned_raw = raw.strip()
         if cleaned_raw.startswith('```'):
@@ -320,13 +316,13 @@ or
             if len(lines) > 2:
                 cleaned_raw = '\n'.join(lines[1:-1]).strip()
         
-        # Try to find JSON object in the response
+        # find JSON object in the response
         json_start = cleaned_raw.find('{')
         json_end = cleaned_raw.rfind('}')
         if json_start != -1 and json_end != -1 and json_end > json_start:
             cleaned_raw = cleaned_raw[json_start:json_end + 1]
         
-        # Try to parse JSON
+        # parse JSON
         try:
             result = json.loads(cleaned_raw)
             risk_level = result.get('risk_level', 'unknown').lower()
@@ -401,12 +397,12 @@ or
 
 # Create your views here.
 def home(request):
-    # Get some statistics for the homepage
+    # Get statistics for the homepage
     total_professors = ITEM.objects.values_list('professor_name', flat=True).distinct().count()
     total_schools = ITEM.objects.values_list('school_name', flat=True).distinct().count()
     total_reviews = ITEM.objects.count()
     
-    # Handle search functionality
+    # search functionality
     if request.method == 'POST':
         search_query = request.POST.get('search', '').strip()
         if search_query:
@@ -416,7 +412,7 @@ def home(request):
             ).values_list('professor_name', flat=True).distinct()
             
             if matching_professors.exists():
-                # If we find exact matches, redirect to the first professor's profile
+                # If find exact matches, redirect to the first professor's profile
                 first_professor = matching_professors.first()
                 return redirect('professor_profile', professor_name=first_professor)
             else:
@@ -430,25 +426,7 @@ def home(request):
     }
     return render(request, 'home.html', context) 
     
-    
 
-# def register_view(request):
-#     if request.method == 'POST':
-#         username = request.POST.get('username')
-#         password = request.POST.get('password')
-#         confirm_password = request.POST.get('confirm_password')
-
-#         if password == confirm_password:
-#             try:
-#                 user = User.objects.create_user(username=username, password=password)
-#                 user.save()
-#                 login(request, user)
-#                 return redirect('home')
-#             except:
-#                 messages.error(request, "Username already exists.")
-#         else:
-#             messages.error(request, "Passwords do not match.")
-#     return render(request, "registration/register.html", {'messages': "Register to Rate My Professor!"})
     
 def showitems(request):
     # Get unique school names and professor names from the database
@@ -464,11 +442,11 @@ def showitems(request):
         selected_school = request.POST.get('school')
         selected_professor = request.POST.get('professor')
         
-        # Filter professors by selected school
+        # Filter prof by selected school
         if selected_school:
             filtered_professors = ITEM.objects.filter(school_name=selected_school).values_list('professor_name', flat=True).distinct().order_by('professor_name')
         
-        # Get professor details if professor is selected
+        # Get prof details if professor is selected
         if selected_professor:
             professor_details = ITEM.objects.filter(professor_name=selected_professor)
             if selected_school:
@@ -485,12 +463,12 @@ def showitems(request):
     return render(request, 'show.html', context)
 
 def professor_dropdown(request):
-    # Get unique professor names for dropdown
+    # Get unique prof names for dropdown
     professors = ITEM.objects.values_list('professor_name', flat=True).distinct().order_by('professor_name')
     return render(request, 'professor_dropdown.html', {"professors": professors})
 
 def professor_profile(request, professor_name):
-    # Get all reviews for the specific professor
+    # Get all reviews for the specific prof
     reviews = ITEM.objects.filter(professor_name=professor_name)
     
     if not reviews.exists():
@@ -516,32 +494,32 @@ def professor_profile(request, professor_name):
     difficulty = list(reviews.values_list('difficulty', flat=True))
     min_difficulty = 1.0
     max_difficulty = 5.0
-    epsilon = 1.0  # Privacy loss
+    epsilon = 1.0 
     noisy_avg, true_avg = dp_difficulty_average(difficulty, min_difficulty, max_difficulty, epsilon)
     average_difficulty = round(noisy_avg, 1)
 
-    # Calculate average help_useful
+    # average help_useful
     # Using proper Django aggregate syntax
     # avg_result = reviews.aggregate(avg_help=models.Avg('help_useful'))
     # average_help_useful = round(avg_result.get('avg_help') or 0, 1)
     helpful = list(reviews.values_list('help_useful', flat=True))
     min_helpful = 1.0
     max_helpful = 10.0
-    epsilon = 1.0  # Privacy loss
+    epsilon = 1.0  
     noisy_avg, true_avg = dp_helpful_average(helpful, min_helpful, max_helpful, epsilon)
     average_help_useful = round(noisy_avg, 1)
     
-    # Calculate percentage who would take again
+    # percentage who would take again
     # would_take_again_count = reviews.filter(would_take_agains=True).count()
     # would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
     
     # Calculate differentially private percentage who would take again
     true_count = reviews.filter(would_take_agains=True).count()
-    epsilon = 1.0  # Privacy loss
+    epsilon = 0.1
     noisy_count = dp_count(true_count, epsilon)
     # Ensure noisy_count is non-negative
     noisy_count = max(0, noisy_count)
-    # Calculate noisy percentage
+    # noisy percentage
     would_take_again_percent = round((noisy_count / total_reviews) * 100) if total_reviews > 0 else 0
     # Ensure percentage is between 0 and 100
     would_take_again_percent = max(0, min(100, would_take_again_percent))
@@ -678,7 +656,7 @@ def search_prof(request):
                 # would_take_again_percent = round((would_take_again_count / total_reviews) * 100) if total_reviews > 0 else 0
                 # Calculate differentially private percentage who would take again
                 true_count = reviews.filter(would_take_agains=True).count()
-                epsilon = 1.0  # Privacy budget
+                epsilon = 0.1  # Privacy budget
                 noisy_count = dp_count(true_count, epsilon)
                 # Ensure noisy_count is non-negative
                 noisy_count = max(0, noisy_count)
