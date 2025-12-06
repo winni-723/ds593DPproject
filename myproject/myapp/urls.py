@@ -3,7 +3,6 @@ from .views import home, showitems, professor_dropdown, professor_profile, searc
 
 urlpatterns = [
     path('', home, name='home'),
-    #path('register/', register_view, name='register'),
     path('browse/', showitems, name='showitems'),
     path('search/', search_prof, name='search_prof'),
     path('professors/', professor_dropdown, name='professor_dropdown'),
